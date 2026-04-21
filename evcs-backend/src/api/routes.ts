@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { db } from "../services/db";
-import { sendPushNotification, registerDeviceToken } from "../services/notifications";
+import { sendNotificationToUser, registerDeviceToken, deactivateDeviceToken } from "../services/notifications";
+import { sendPushNotificationFirebase } from "../services/firebase";
 import {
   getAllChargePoints,
   getChargePointById,
@@ -8,6 +9,7 @@ import {
   getAllTransactions,
   getAllUsers,
   getUserByTag,
+  getActiveTransactionByUser,
 } from "../services/steve";
 import { getPollingStatus } from "../services/sync";
 
@@ -93,6 +95,48 @@ router.get("/charge-points/:cpId/transactions", async (req: Request, res: Respon
   }
 });
 
+// Get current charging state for a user
+router.get("/users/:idTag/current-charge", async (req: Request, res: Response) => {
+  try {
+    const { idTag } = req.params;
+    const activeTransaction = await getActiveTransactionByUser(idTag);
+    
+    if (!activeTransaction) {
+      return res.status(404).json({ 
+        error: "No active charging session",
+        idTag 
+      });
+    }
+
+    // Calculate charge progress
+    const chargeTimeMinutes = Math.floor(activeTransaction.chargeSeconds / 60);
+    const chargeTimeHours = (activeTransaction.chargeSeconds / 3600).toFixed(2);
+    
+    res.json({
+      transactionId: activeTransaction.transaction_pk,
+      userId: activeTransaction.idTag,
+      chargePoint: {
+        id: activeTransaction.charge_box_id,
+        vendor: activeTransaction.charge_point_vendor,
+        model: activeTransaction.charge_point_model,
+        connector: activeTransaction.connector_id,
+      },
+      charging: {
+        startTime: activeTransaction.startTimestamp,
+        durationSeconds: activeTransaction.chargeSeconds,
+        durationMinutes: chargeTimeMinutes,
+        durationHours: parseFloat(chargeTimeHours),
+        energyAtStart: parseFloat(activeTransaction.energyAtStart || 0),
+        estimatedRemaining: "See notifications for real-time progress",
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching current charge state:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ============ Users (from Steve) ============
 
 // Get all users from Steve
@@ -131,7 +175,7 @@ router.get("/users/:idTag", async (req: Request, res: Response) => {
 // Register device token for push notifications
 router.post("/notifications/register-token", async (req: Request, res: Response) => {
   try {
-    const { userId, token, deviceName } = req.body;
+    const { userId, token } = req.body;
 
     if (!userId || !token) {
       return res.status(400).json({
@@ -139,12 +183,11 @@ router.post("/notifications/register-token", async (req: Request, res: Response)
       });
     }
 
-    const result = await registerDeviceToken({ userId, token, deviceName });
+    const result = await registerDeviceToken({ userId, token });
 
     if (result.success) {
       res.status(201).json({
-        message: "Token registered successfully",
-        action: result.action,
+        message: result.message,
       });
     } else {
       res.status(500).json({
@@ -168,17 +211,16 @@ router.post("/notifications/send", async (req: Request, res: Response) => {
       });
     }
 
-    const result = await sendPushNotification({ title, body, token });
+    const result = await sendPushNotificationFirebase({ title, body, token });
 
     if (result.success) {
       res.json({
         message: "Notification sent successfully",
-        details: result.details,
+        messageId: result.messageId,
       });
     } else {
       res.status(500).json({
         error: result.error,
-        details: result.details,
       });
     }
   } catch (error) {

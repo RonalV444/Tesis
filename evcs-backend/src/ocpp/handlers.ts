@@ -1,4 +1,4 @@
-import { sendPushNotification } from '../services/notifications';
+import { sendPushNotificationFirebase } from '../services/firebase';
 
 export async function handleBootNotification(chargePointId: string, payload: any) {
   console.log("BootNotification from", chargePointId, payload);
@@ -18,13 +18,13 @@ export async function handleStartStop(chargePointId: string, type: "start" | "st
   const testDeviceToken = "TOKEN_DE_EJEMPLO_DE_APP";
 
   if (type === "start") {
-    await sendPushNotification({
+    await sendPushNotificationFirebase({
       title: "Carga iniciada",
       body: `La estación ${chargePointId} inició una sesión de carga.`,
       token: testDeviceToken,
     });
   } else if (type === "stop") {
-    await sendPushNotification({
+    await sendPushNotificationFirebase({
       title: "Carga finalizada",
       body: `La estación ${chargePointId} finalizó una sesión de carga.`,
       token: testDeviceToken,

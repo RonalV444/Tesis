@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Firebase Credentials (NUNCA SUBIR)
+firebase-credentials.json
+*firebase-adminsdk*.json
+
 # Dependencies
 node_modules/
 package-lock.json

@@ -25,6 +25,9 @@ export const config = {
   },
 
   // Firebase
+  firebase: {
+    credentialsPath: process.env.FIREBASE_CREDENTIALS_PATH || './firebase-credentials.json',
+  },
   fcm: {
     serverKey: process.env.FCM_SERVER_KEY || '',
   },

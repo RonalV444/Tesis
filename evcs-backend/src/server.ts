@@ -5,6 +5,7 @@ import { db } from "./services/db";
 import { config } from "./config/env";
 import apiRoutes from "./api/routes";
 import { initializePolling, stopPolling } from "./services/sync";
+import { initializeFirebase } from "./services/firebase";
 
 // Startup debug
 console.log('🔧 Starting EVCS Backend (dev)');
@@ -31,6 +32,15 @@ async function testDBConnection() {
 }
 
 testDBConnection();
+
+// Initialize Firebase Admin SDK
+try {
+  initializeFirebase();
+  console.log('✅ Firebase Admin SDK inicializado');
+} catch (error) {
+  console.error('❌ Error inicializando Firebase:', error);
+  process.exit(1);
+}
 
 const PORT = config.port;
 

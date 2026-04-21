@@ -97,19 +97,19 @@ export async function getActiveTransactions(): Promise<SteveTransaction[]> {
   try {
     const [rows] = await steveDb.query(`
       SELECT 
-        t.transaction_pk,
-        t.connector_pk,
-        t.idTag,
-        t.startTimestamp,
-        t.startValue,
-        t.stopTimestamp,
-        t.stopValue,
-        cb.charge_box_id
-      FROM transaction t
-      JOIN connector c ON t.connector_pk = c.connector_pk
-      JOIN charge_box cb ON c.charge_box_id = cb.charge_box_id
-      WHERE t.stopTimestamp IS NULL
-      ORDER BY t.startTimestamp DESC
+        ts.transaction_pk,
+        ts.connector_pk,
+        ts.id_tag AS idTag,
+        ts.start_timestamp AS startTimestamp,
+        ts.start_value AS startValue,
+        COALESCE(tst.stop_timestamp, NULL) AS stopTimestamp,
+        COALESCE(tst.stop_value, NULL) AS stopValue,
+        c.charge_box_id
+      FROM transaction_start ts
+      LEFT JOIN transaction_stop tst ON ts.transaction_pk = tst.transaction_pk
+      JOIN connector c ON ts.connector_pk = c.connector_pk
+      WHERE tst.transaction_pk IS NULL
+      ORDER BY ts.start_timestamp DESC
     `);
     return rows as SteveTransaction[];
   } catch (error) {
@@ -125,18 +125,18 @@ export async function getAllTransactions(limit: number = 100): Promise<SteveTran
   try {
     const [rows] = await steveDb.query(`
       SELECT 
-        t.transaction_pk,
-        t.connector_pk,
-        t.idTag,
-        t.startTimestamp,
-        t.startValue,
-        t.stopTimestamp,
-        t.stopValue,
-        cb.charge_box_id
-      FROM transaction t
-      JOIN connector c ON t.connector_pk = c.connector_pk
-      JOIN charge_box cb ON c.charge_box_id = cb.charge_box_id
-      ORDER BY t.startTimestamp DESC
+        ts.transaction_pk,
+        ts.connector_pk,
+        ts.id_tag AS idTag,
+        ts.start_timestamp AS startTimestamp,
+        ts.start_value AS startValue,
+        COALESCE(tst.stop_timestamp, NULL) AS stopTimestamp,
+        COALESCE(tst.stop_value, NULL) AS stopValue,
+        c.charge_box_id
+      FROM transaction_start ts
+      LEFT JOIN transaction_stop tst ON ts.transaction_pk = tst.transaction_pk
+      JOIN connector c ON ts.connector_pk = c.connector_pk
+      ORDER BY ts.start_timestamp DESC
       LIMIT ?
     `, [limit]);
     return rows as SteveTransaction[];
@@ -156,19 +156,19 @@ export async function getTransactionsByChargePoint(
   try {
     const [rows] = await steveDb.query(`
       SELECT 
-        t.transaction_pk,
-        t.connector_pk,
-        t.idTag,
-        t.startTimestamp,
-        t.startValue,
-        t.stopTimestamp,
-        t.stopValue,
-        cb.charge_box_id
-      FROM transaction t
-      JOIN connector c ON t.connector_pk = c.connector_pk
-      JOIN charge_box cb ON c.charge_box_id = cb.charge_box_id
-      WHERE cb.charge_box_id = ?
-      ORDER BY t.startTimestamp DESC
+        ts.transaction_pk,
+        ts.connector_pk,
+        ts.id_tag AS idTag,
+        ts.start_timestamp AS startTimestamp,
+        ts.start_value AS startValue,
+        COALESCE(tst.stop_timestamp, NULL) AS stopTimestamp,
+        COALESCE(tst.stop_value, NULL) AS stopValue,
+        c.charge_box_id
+      FROM transaction_start ts
+      LEFT JOIN transaction_stop tst ON ts.transaction_pk = tst.transaction_pk
+      JOIN connector c ON ts.connector_pk = c.connector_pk
+      WHERE c.charge_box_id = ?
+      ORDER BY ts.start_timestamp DESC
       LIMIT ?
     `, [chargeBoxId, limit]);
     return rows as SteveTransaction[];
@@ -179,24 +179,24 @@ export async function getTransactionsByChargePoint(
 }
 
 /**
- * Get user by RFID tag
+ * Get user by RFID tag (from ocpp_tag)
  */
 export async function getUserByTag(idTag: string): Promise<SteveUser | null> {
   try {
     const [rows] = await steveDb.query(
-      'SELECT user_pk, idTag, firstName, lastName, email, phone, inTransaction FROM user WHERE idTag = ?',
+      'SELECT ocpp_tag_pk, id_tag, note FROM ocpp_tag WHERE id_tag = ?',
       [idTag]
     );
     const result = rows as any[];
     if (result.length > 0) {
       return {
-        user_pk: result[0].user_pk,
-        idTag: result[0].idTag,
-        firstName: result[0].firstName,
-        lastName: result[0].lastName,
-        email: result[0].email,
-        phone: result[0].phone,
-        inTransaction: result[0].inTransaction === 1,
+        user_pk: result[0].ocpp_tag_pk,
+        idTag: result[0].id_tag,
+        firstName: undefined,
+        lastName: undefined,
+        email: undefined,
+        phone: undefined,
+        inTransaction: false,
       };
     }
     return null;
@@ -207,21 +207,21 @@ export async function getUserByTag(idTag: string): Promise<SteveUser | null> {
 }
 
 /**
- * Get all users
+ * Get all users from ocpp_tag
  */
 export async function getAllUsers(): Promise<SteveUser[]> {
   try {
     const [rows] = await steveDb.query(
-      'SELECT user_pk, idTag, firstName, lastName, email, phone, inTransaction FROM user'
+      'SELECT ocpp_tag_pk, id_tag FROM ocpp_tag'
     );
     return (rows as any[]).map(row => ({
-      user_pk: row.user_pk,
-      idTag: row.idTag,
-      firstName: row.firstName,
-      lastName: row.lastName,
-      email: row.email,
-      phone: row.phone,
-      inTransaction: row.inTransaction === 1,
+      user_pk: row.ocpp_tag_pk,
+      idTag: row.id_tag,
+      firstName: undefined,
+      lastName: undefined,
+      email: undefined,
+      phone: undefined,
+      inTransaction: false,
     }));
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -234,17 +234,22 @@ export async function getAllUsers(): Promise<SteveUser[]> {
  */
 export async function getUsersInTransaction(): Promise<SteveUser[]> {
   try {
-    const [rows] = await steveDb.query(
-      'SELECT user_pk, idTag, firstName, lastName, email, phone, inTransaction FROM user WHERE inTransaction = TRUE'
-    );
+    const [rows] = await steveDb.query(`
+      SELECT DISTINCT ot.ocpp_tag_pk, ot.id_tag
+      FROM ocpp_tag ot
+      JOIN transaction_start ts ON ot.id_tag = ts.id_tag
+      LEFT JOIN transaction_stop tst ON ts.transaction_pk = tst.transaction_pk
+      WHERE tst.transaction_pk IS NULL
+      LIMIT 100
+    `);
     return (rows as any[]).map(row => ({
-      user_pk: row.user_pk,
-      idTag: row.idTag,
-      firstName: row.firstName,
-      lastName: row.lastName,
-      email: row.email,
-      phone: row.phone,
-      inTransaction: row.inTransaction === 1,
+      user_pk: row.ocpp_tag_pk,
+      idTag: row.id_tag,
+      firstName: undefined,
+      lastName: undefined,
+      email: undefined,
+      phone: undefined,
+      inTransaction: true,
     }));
   } catch (error) {
     console.error('Error fetching users in transaction:', error);
@@ -253,30 +258,45 @@ export async function getUsersInTransaction(): Promise<SteveUser[]> {
 }
 
 /**
- * Get meter values for a transaction
+ * Get active transaction for a specific user
  */
-export async function getTransactionMeterValues(transactionPk: number) {
+export async function getActiveTransactionByUser(idTag: string): Promise<any | null> {
   try {
     const [rows] = await steveDb.query(`
       SELECT 
-        cmv.valueTimestamp,
-        cmv.value,
-        cmv.readingContext,
-        cmv.format,
-        cmv.measurand,
-        cmv.unit,
-        cmv.location,
-        cmv.phase
-      FROM connector_metervalue cmv
-      WHERE cmv.transaction_pk = ?
-      ORDER BY cmv.valueTimestamp DESC
-      LIMIT 10
-    `, [transactionPk]);
-    return rows;
+        ts.transaction_pk,
+        ts.connector_pk,
+        ts.id_tag AS idTag,
+        ts.start_timestamp AS startTimestamp,
+        ts.start_value AS startValue,
+        c.charge_box_id,
+        cb.charge_point_vendor,
+        cb.charge_point_model,
+        c.connector_id,
+        TIMESTAMPDIFF(SECOND, ts.start_timestamp, NOW()) as chargeSeconds,
+        IFNULL(ts.start_value, 0) as energyAtStart
+      FROM transaction_start ts
+      LEFT JOIN transaction_stop tst ON ts.transaction_pk = tst.transaction_pk
+      JOIN connector c ON ts.connector_pk = c.connector_pk
+      JOIN charge_box cb ON c.charge_box_id = cb.charge_box_id
+      WHERE ts.id_tag = ? AND tst.transaction_pk IS NULL
+      LIMIT 1
+    `, [idTag]);
+    
+    return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
   } catch (error) {
-    console.error('Error fetching meter values:', error);
-    return [];
+    console.error(`Error fetching active transaction for user ${idTag}:`, error);
+    return null;
   }
+}
+
+/**
+ * Get meter values for a transaction (currently not used)
+ */
+export async function getTransactionMeterValues(transactionPk: number) {
+  // Currently disabled - meter values table structure unclear
+  // TODO: Implement when Steve DB schema is clarified
+  return [];
 }
 
 /**
