@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 EVCS Demo - Sistema de Notificaciones Electromovilidad</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            max-width: 1400px;
+            width: 100%;
+        }
+
+        /* PHONE SIMULATOR */
+        .phone-simulator {
+            width: 100%;
+            max-width: 500px;
+            height: 800px;
+            background: #000;
+            border-radius: 40px;
+            border: 12px solid #000;
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .phone-notch {
+            background: #000;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .phone-screen {
+            flex: 1;
+            background: #fff;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .app-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-weight: 600;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .app-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-bar {
+            display: flex;
+            justify-content: space-around;
+            border-top: 1px solid #eee;
+            background: #fafafa;
+        }
+
+        .tab-item {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            border-top: 3px solid transparent;
+            font-size: 12px;
+            color: #999;
+            transition: all 0.3s;
+        }
+
+        .tab-item.active {
+            border-top-color: #667eea;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* LOGIN SCREEN */
+        .input-field {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-field label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .input-field input {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        /* SESSION CARD */
+        .session-card {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .session-header {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .session-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .session-metric {
+            background: white;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .session-metric-value {
+            font-weight: 600;
+            font-size: 16px;
+            color: #667eea;
+        }
+
+        .session-metric-label {
+            font-size: 11px;
+            color: #999;
+        }
+
+        /* NOTIFICATION */
+        .notification-item {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .notification-item:hover {
+            background: #f0f0f0;
+        }
+
+        .notification-time {
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .notification-body {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* CONTROL PANEL */
+        .control-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .control-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .control-section {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .control-section:last-child {
+            border-bottom: none;
+        }
+
+        .section-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .control-btn {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .control-btn-success {
+            background: #51cf66;
+            color: white;
+        }
+
+        .control-btn-success:hover {
+            background: #40c057;
+            transform: translateY(-2px);
+        }
+
+        .control-btn-warning {
+            background: #ffa94d;
+            color: white;
+        }
+
+        .control-btn-warning:hover {
+            background: #ff922b;
+            transform: translateY(-2px);
+        }
+
+        .control-btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .control-btn-danger:hover {
+            background: #fa5252;
+            transform: translateY(-2px);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .status-success {
+            background: #d3f9d8;
+            color: #2f9e44;
+        }
+
+        .status-error {
+            background: #ffe0e0;
+            color: #c92a2a;
+        }
+
+        .status-warning {
+            background: #ffe066;
+            color: #856404;
+        }
+
+        /* PROFILE SCREEN */
+        .profile-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .profile-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+        }
+
+        .profile-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .profile-email {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .profile-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            background: #f9f9f9;
+            color: #333;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 3px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            animation: slideUp 0.3s ease-out;
+            z-index: 1000;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .ocpp-event {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 11px;
+            font-family: monospace;
+            color: #333;
+        }
+
+        .ocpp-event .event-type {
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .phone-simulator {
+                max-width: 100%;
+                height: 600px;
+            }
+
+            .control-panel {
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- PHONE SIMULATOR -->
+        <div class="phone-simulator">
+            <div class="phone-notch">
+                <span>🔋 📶</span>
+            </div>
+            <div class="phone-screen">
+                <div class="app-header">
+                    <span id="app-title">EVCS Notificaciones</span>
+                </div>
+
+                <div class="app-content">
+                    <!-- LOGIN SCREEN -->
+                    <div id="screen-login" class="screen active">
+                        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                            <div style="text-align: center; margin-bottom: 30px;">
+                                <div style="font-size: 48px; margin-bottom: 10px;">⚡</div>
+                                <h1 style="font-size: 20px; color: #333; margin-bottom: 5px;">EVCS</h1>
+                                <p style="color: #999; font-size: 12px;">Sistema de Notificaciones</p>
+                            </div>
+
+                            <div class="input-field">
+                                <label>Email</label>
+                                <input type="email" id="login-email" value="demo@evcs.com" placeholder="tu@email.com">
+                            </div>
+
+                            <div class="input-field">
+                                <label>Contraseña</label>
+                                <input type="password" id="login-password" value="123456" placeholder="••••••">
+                            </div>
+
+                            <button class="btn btn-primary" onclick="loginUser()">Iniciar Sesión</button>
+                        </div>
+                    </div>
+
+                    <!-- HOME SCREEN -->
+                    <div id="screen-home" class="screen">
+                        <div style="margin-bottom: 15px;">
+                            <h2 style="font-size: 16px; margin-bottom: 10px; color: #333;">Sesiones Activas</h2>
+                            <div id="active-sessions-container"></div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="showToast('Refresh realizado')" style="margin-top: auto;">
+                            🔄 Actualizar
+                        </button>
+                    </div>
+
+                    <!-- NOTIFICATIONS SCREEN -->
+                    <div id="screen-notifications" class="screen">
+                        <div id="notifications-container"></div>
+                    </div>
+
+                    <!-- HISTORY SCREEN -->
+                    <div id="screen-history" class="screen">
+                        <div id="history-container"></div>
+                    </div>
+
+                    <!-- PROFILE SCREEN -->
+                    <div id="screen-profile" class="screen">
+                        <div id="profile-container"></div>
+                        <button class="btn btn-danger" onclick="logout()">Cerrar Sesión</button>
+                    </div>
+                </div>
+
+                <div class="tab-bar">
+                    <div class="tab-item active" onclick="switchTab('home')">🏠 Home</div>
+                    <div class="tab-item" onclick="switchTab('notifications')">🔔 Notif</div>
+                    <div class="tab-item" onclick="switchTab('history')">📊 Historial</div>
+                    <div class="tab-item" onclick="switchTab('profile')">👤 Perfil</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTROL PANEL -->
+        <div class="control-panel">
+            <div class="control-title">🎮 Panel de Control Demo</div>
+
+            <div class="control-section">
+                <span class="section-label">Backend API</span>
+                <button class="control-btn control-btn-success" onclick="checkBackendStatus()">
+                    ✓ Verificar Backend
+                </button>
+                <div id="backend-status"></div>
+            </div>
+
+            <div class="control-section">
+                <span class="section-label">OCPP Eventos</span>
+                <button class="control-btn control-btn-warning" onclick="simulateOCPPEvent('StartTransaction')">
+                    ▶ Start Transaction
+                </button>
+                <button class="control-btn control-btn-warning" onclick="simulateOCPPEvent('MeterValues')">
+                    📊 Meter Values (SOC 92%)
+                </button>
+                <button class="control-btn control-btn-warning" onclick="simulateOCPPEvent('StatusNotification')">
+                    ⚠️ Status: Available
+                </button>
+                <button class="control-btn control-btn-danger" onclick="simulateOCPPEvent('StopTransaction')">
+                    ⏹ Stop Transaction
+                </button>
+            </div>
+
+            <div class="control-section">
+                <span class="section-label">Notificaciones</span>
+                <button class="control-btn control-btn-success" onclick="simulateNotification('⚡ Carga casi completa', '92% SOC detectado')">
+                    ⚡ R1: SOC ≥ 90%
+                </button>
+                <button class="control-btn control-btn-success" onclick="simulateNotification('⏱️ Tiempo de carga bajo', 'Menos de 10 minutos')">
+                    ⏱ R2: Tiempo < 10min
+                </button>
+                <button class="control-btn control-btn-success" onclick="simulateNotification('✅ Cargador disponible', 'Charger CP-001 listo')">
+                    ✅ R3: Available
+                </button>
+                <button class="control-btn control-btn-success" onclick="simulateNotification('✨ Carga finalizada', 'Transacción completada')">
+                    ✨ R4: Finishing
+                </button>
+                <button class="control-btn control-btn-danger" onclick="simulateNotification('❌ Error en la carga', 'Charger en estado Faulted')">
+                    ❌ R5: Fault
+                </button>
+            </div>
+
+            <div class="control-section">
+                <span class="section-label">OCPP Event Log</span>
+                <div id="ocpp-log" style="max-height: 150px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 6px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://10.125.19.125:3000/api';
+        let currentUser = null;
+        let notifications = [];
+        let sessions = [];
+
+        // SWITCH TABS
+        function switchTab(tabName) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            
+            document.getElementById(`screen-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (tabName === 'home') loadActiveSessions();
+            if (tabName === 'notifications') loadNotifications();
+            if (tabName === 'history') loadHistory();
+            if (tabName === 'profile') loadProfile();
+        }
+
+        // LOGIN
+        async function loginUser() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            currentUser = { email, name: 'Demo User' };
+            showToast('✓ Login exitoso');
+            
+            document.getElementById('screen-login').classList.remove('active');
+            document.getElementById('screen-home').classList.add('active');
+            
+            loadActiveSessions();
+        }
+
+        // LOAD ACTIVE SESSIONS
+        async function loadActiveSessions() {
+            const container = document.getElementById('active-sessions-container');
+            sessions = [
+                { id: 1, charger: 'CP-001', soc: 85, power: 7.4, duration: '45 min' },
+                { id: 2, charger: 'CP-002', soc: 45, power: 11, duration: '1 h 20 min' }
+            ];
+
+            container.innerHTML = sessions.map(s => `
+                <div class="session-card">
+                    <div class="session-header">Cargador ${s.charger}</div>
+                    <div class="session-info">
+                        <div class="session-metric">
+                            <div class="session-metric-value">${s.soc}%</div>
+                            <div class="session-metric-label">SOC</div>
+                        </div>
+                        <div class="session-metric">
+                            <div class="session-metric-value">${s.power}kW</div>
+                            <div class="session-metric-label">Potencia</div>
+                        </div>
+                        <div class="session-metric">
+                            <div class="session-metric-value">${s.duration}</div>
+                            <div class="session-metric-label">Duración</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger" style="width: 100%; font-size: 12px;">Detener Carga</button>
+                </div>
+            `).join('');
+        }
+
+        // LOAD NOTIFICATIONS
+        function loadNotifications() {
+            const container = document.getElementById('notifications-container');
+            if (notifications.length === 0) {
+                container.innerHTML = '<p style="color: #999; text-align: center; padding: 30px 0;">No hay notificaciones aún</p>';
+                return;
+            }
+
+            container.innerHTML = notifications.map((n, i) => `
+                <div class="notification-item">
+                    <div class="notification-time">${new Date(n.timestamp).toLocaleTimeString()}</div>
+                    <div class="notification-title">${n.title}</div>
+                    <div class="notification-body">${n.body}</div>
+                </div>
+            `).reverse().join('');
+        }
+
+        // LOAD HISTORY
+        function loadHistory() {
+            const container = document.getElementById('history-container');
+            const history = [
+                { date: '10 May 2026', charger: 'CP-001', energy: 18.5, cost: '$3.50' },
+                { date: '09 May 2026', charger: 'CP-005', energy: 22.3, cost: '$4.20' },
+                { date: '08 May 2026', charger: 'CP-003', energy: 15.8, cost: '$3.00' }
+            ];
+
+            container.innerHTML = history.map(h => `
+                <div class="session-card">
+                    <div class="session-header">${h.date}</div>
+                    <div class="session-info">
+                        <div><strong>Cargador:</strong> ${h.charger}</div>
+                        <div><strong>Energía:</strong> ${h.energy} kWh</div>
+                        <div><strong>Costo:</strong> ${h.cost}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // LOAD PROFILE
+        function loadProfile() {
+            const container = document.getElementById('profile-container');
+            container.innerHTML = `
+                <div class="profile-card">
+                    <div class="profile-avatar">👤</div>
+                    <div class="profile-name">${currentUser?.name || 'Usuario'}</div>
+                    <div class="profile-email">${currentUser?.email || 'user@email.com'}</div>
+                </div>
+                <div class="profile-info">
+                    <div class="info-item">
+                        <div class="info-label">Sesiones Totales</div>
+                        <div class="info-value">42</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Energía Cargada</div>
+                        <div class="info-value">487.3 kWh</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Dinero Gastado</div>
+                        <div class="info-value">$92.50</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Miembro Desde</div>
+                        <div class="info-value">Jan 2024</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // SIMULATE NOTIFICATION
+        function simulateNotification(title, body) {
+            notifications.push({
+                title,
+                body,
+                timestamp: new Date()
+            });
+            showToast(`📬 ${title}`);
+            if (document.getElementById('screen-notifications').classList.contains('active')) {
+                loadNotifications();
+            }
+        }
+
+        // SIMULATE OCPP EVENT
+        async function simulateOCPPEvent(eventType) {
+            const log = document.getElementById('ocpp-log');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            let eventData = '';
+            let ruleTriggered = '';
+
+            switch(eventType) {
+                case 'StartTransaction':
+                    eventData = 'CP-001: Transacción iniciada';
+                    break;
+                case 'MeterValues':
+                    eventData = 'CP-001: SOC=92%, Power=7.4kW';
+                    ruleTriggered = '✅ R1 TRIGGERED: Carga casi completa';
+                    simulateNotification('⚡ Carga casi completa', '92% SOC detectado');
+                    break;
+                case 'StatusNotification':
+                    eventData = 'CP-001: Status=Available';
+                    ruleTriggered = '✅ R3 TRIGGERED: Cargador disponible';
+                    simulateNotification('✅ Cargador disponible', 'CP-001 listo para usar');
+                    break;
+                case 'StopTransaction':
+                    eventData = 'CP-001: Transacción completada';
+                    ruleTriggered = '✅ R4 TRIGGERED: Carga finalizada';
+                    simulateNotification('✨ Carga finalizada', 'Transacción completada');
+                    break;
+            }
+
+            const eventHTML = `
+                <div class="ocpp-event">
+                    <span style="color: #999;">[${timestamp}]</span>
+                    <span class="event-type"> ${eventType}</span><br>
+                    ${eventData}
+                    ${ruleTriggered ? `<br><strong>${ruleTriggered}</strong>` : ''}
+                </div>
+            `;
+
+            log.innerHTML = eventHTML + log.innerHTML;
+            if (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        // CHECK BACKEND STATUS
+        async function checkBackendStatus() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'OK') {
+                    document.getElementById('backend-status').innerHTML = '<div class="status-badge status-success">✓ Backend OPERATIONAL</div>';
+                    showToast('✓ Backend respondiendo correctamente');
+                } else {
+                    document.getElementById('backend-status').innerHTML = '<div class="status-badge status-error">✗ Error en Backend</div>';
+                }
+            } catch (error) {
+                document.getElementById('backend-status').innerHTML = '<div class="status-badge status-error">✗ Backend no disponible</div>';
+                showToast('✗ Backend no responde');
+            }
+        }
+
+        // LOGOUT
+        function logout() {
+            currentUser = null;
+            notifications = [];
+            document.getElementById('screen-login').classList.add('active');
+            document.getElementById('screen-home').classList.remove('active');
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.querySelector('.tab-item:first-child').classList.add('active');
+            showToast('Sesión cerrada');
+        }
+
+        // SHOW TOAST
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // INIT
+        window.addEventListener('load', () => {
+            console.log('✅ Demo EVCS cargado');
+            console.log('API URL:', API_URL);
+        });
+    </script>
+</body>
+</html>

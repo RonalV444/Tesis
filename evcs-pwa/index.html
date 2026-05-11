@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23667eea'/%3E%3Ctext x='50' y='67' font-size='50' text-anchor='middle' fill='white'%3E⚡%3C/text%3E%3C/svg%3E">
+    <title>EVCS - Electromovilidad</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+        .phone {
+            width: 100%;
+            max-width: 400px;
+            background: white;
+            border-radius: 44px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            overflow: hidden;
+            position: relative;
+        }
+        .status-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 14px 20px 10px;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+        .content { padding: 20px; min-height: 500px; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        .input-field { margin-bottom: 16px; }
+        .input-field label { display: block; font-size: 12px; color: #666; margin-bottom: 5px; font-weight: 500; }
+        .input-field input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            font-size: 16px;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-danger { background: #ff6b6b; color: white; }
+        .btn-success { background: #51cf66; color: white; }
+        .session-card {
+            background: #f9f9f9;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border-left: 4px solid #667eea;
+        }
+        .session-header { font-weight: 700; font-size: 16px; margin-bottom: 12px; }
+        .session-info { display: flex; gap: 16px; flex-wrap: wrap; }
+        .session-metric { background: white; padding: 8px 12px; border-radius: 12px; text-align: center; flex: 1; }
+        .session-metric-value { font-weight: 700; font-size: 18px; color: #667eea; }
+        .session-metric-label { font-size: 11px; color: #999; }
+        .notification-item {
+            background: #f9f9f9;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .notification-time { font-size: 11px; color: #999; margin-bottom: 5px; }
+        .notification-title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+        .tab-bar {
+            display: flex;
+            background: #fafafa;
+            border-top: 1px solid #eee;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #999;
+            transition: all 0.3s;
+        }
+        .tab.active { color: #667eea; border-top: 3px solid #667eea; background: white; }
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            animation: fadeInUp 0.3s ease;
+            z-index: 1000;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .install-banner {
+            background: #e8e8ff;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .install-btn { background: #667eea; color: white; border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; }
+        .log-area {
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 10px;
+            margin-top: 16px;
+            font-size: 11px;
+            font-family: monospace;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .log-entry { padding: 4px 0; border-bottom: 1px solid #e0e0e0; color: #333; }
+    </style>
+</head>
+<body>
+<div class="phone">
+    <div class="status-bar">
+        <span>📶 EVCS</span>
+        <span>⚡ 🔋</span>
+    </div>
+    <div id="install-container" class="install-banner" style="display:none;">
+        <span>📱 Instalar esta app</span>
+        <button id="install-btn" class="install-btn">Instalar</button>
+    </div>
+
+    <div class="content">
+        <!-- PANTALLA LOGIN -->
+        <div id="screen-login" class="screen active">
+            <div style="text-align:center; margin-bottom:30px;">
+                <div style="font-size:48px;">⚡</div>
+                <h1 style="font-size:22px;">EVCS</h1>
+                <p style="color:#999; font-size:12px;">Notificaciones Inteligentes</p>
+            </div>
+            <div class="input-field">
+                <label>Email</label>
+                <input type="email" id="email" value="test@test.com">
+            </div>
+            <div class="input-field">
+                <label>Contraseña</label>
+                <input type="password" id="password" value="123456">
+            </div>
+            <button class="btn btn-primary" onclick="login()">Iniciar Sesión</button>
+        </div>
+
+        <!-- PANTALLA HOME (solo recibe notificaciones, NO botones de eventos) -->
+        <div id="screen-home" class="screen">
+            <button onclick="forzarRegistro()" style="background:#ff6b6b; padding:12px; margin:10px 0;">🔧 Forzar Registro (Solución)</button>
+
+<script>
+async function forzarRegistro() {
+    addLog('🔧 Forzando registro manual...');
+    
+    // 1. Verificar Service Worker
+    if (!swRegistration) {
+        addLog('❌ Service Worker no registrado. Registrando...');
+        swRegistration = await navigator.serviceWorker.register('/sw.js');
+        addLog('✅ Service Worker registrado');
+    }
+    
+    // 2. Solicitar permiso (forzar)
+    const permission = await Notification.requestPermission();
+    addLog(`📱 Permiso: ${permission}`);
+    
+    if (permission !== 'granted') {
+        alert('Permiso denegado. Ve a Configuración → Chrome → Notificaciones → Permitir');
+        return;
+    }
+    
+    // 3. Crear suscripción push
+    const subscription = await swRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: VAPID_PUBLIC_KEY
+    });
+    addLog('✅ Suscripción push creada');
+    
+    // 4. Enviar al backend
+    const response = await fetch(`${API_URL}/notifications/web-subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId: currentUser?.id || '1',
+            subscription: subscription
+        })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+        addLog('✅ Suscripción registrada en backend');
+        alert('✅ Registro exitoso. Ahora prueba enviar una notificación con curl.');
+    } else {
+        addLog('❌ Error en backend: ' + result.error);
+        alert('Error: ' + result.error);
+    }
+}
+</script>
+            <div id="sessions-container"></div>
+            
+            <!-- BOTÓN PARA ACTIVAR NOTIFICACIONES PUSH -->
+            <button class="btn btn-success" onclick="activarNotificacionesManual()" style="margin: 10px 0;">
+                🔔 Activar Notificaciones Push
+            </button>
+
+            <div class="log-area" id="log-area">
+                <div class="log-entry">✅ App lista. Esperando notificaciones desde el backend...</div>
+            </div>
+        </div>
+
+        <!-- PANTALLA NOTIFICACIONES -->
+        <div id="screen-notifications" class="screen">
+            <div id="notif-container"></div>
+        </div>
+
+        <!-- PANTALLA PERFIL -->
+        <div id="screen-profile" class="screen">
+            <div id="profile-container"></div>
+            <button class="btn btn-danger" onclick="logout()">Cerrar Sesión</button>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('home')">🏠 Inicio</div>
+        <div class="tab" onclick="switchTab('notifications')">🔔 Notif</div>
+        <div class="tab" onclick="switchTab('profile')">👤 Perfil</div>
+    </div>
+</div>
+
+<script>
+    // ============ CONFIGURACIÓN ============
+    const API_URL = 'http://10.125.19.125:3000/api';
+    
+    let currentUser = null;
+    let notifications = [];
+    let deferredPrompt = null;
+    let swRegistration = null;
+
+    // ============ REGISTRO SERVICE WORKER ============
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => {
+                swRegistration = reg;
+                addLog('✅ Service Worker registrado');
+            })
+            .catch(err => addLog('❌ Error SW: ' + err));
+    }
+
+    // Escuchar mensajes push
+    navigator.serviceWorker?.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'PUSH_NOTIFICATION') {
+            addNotification(event.data.title, event.data.body);
+        }
+    });
+
+    // Instalación PWA
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        document.getElementById('install-container').style.display = 'flex';
+    });
+
+    document.getElementById('install-btn')?.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                addLog('✅ App instalada en el dispositivo');
+            }
+            deferredPrompt = null;
+            document.getElementById('install-container').style.display = 'none';
+        }
+    });
+
+    // ============ NOTIFICACIONES PUSH ============
+    const VAPID_PUBLIC_KEY = 'BCfW64tuCjOuf1iXXPna9U3sHSRyLo_Kd27jwFOik0HZM6E0HLlK9PXEaOogVgdsPyqmqUTC2neJwZJecBTccxw';
+    
+    async function activarNotificacionesManual() {
+        addLog('🔔 Solicitando permiso de notificaciones...');
+        
+        if (!('Notification' in window)) {
+            addLog('❌ Este navegador no soporta notificaciones');
+            alert('Tu navegador no soporta notificaciones');
+            return;
+        }
+        
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted') {
+            addLog('✅ Permiso de notificaciones CONCEDIDO');
+            await registrarSuscripcionWeb();
+        } else {
+            addLog('❌ Permiso de notificaciones DENEGADO');
+            alert('Debes permitir las notificaciones en Configuración → Chrome → Notificaciones');
+        }
+    }
+    
+    async function registrarSuscripcionWeb() {
+        if (!swRegistration) {
+            addLog('❌ Service Worker no registrado');
+            return;
+        }
+        
+        try {
+            const subscription = await swRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: VAPID_PUBLIC_KEY
+            });
+            addLog('✅ Suscripción push creada localmente');
+            
+            const response = await fetch(`${API_URL}/notifications/web-subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: currentUser?.id || '1',
+                    subscription: subscription
+                })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                addLog('✅ Suscripción web registrada en el backend');
+                alert('✅ Notificaciones activadas. Ahora recibe eventos desde el simulador de PC.');
+            } else {
+                addLog('❌ Error registrando en backend: ' + result.error);
+            }
+        } catch (error) {
+            addLog('❌ Error en suscripción push: ' + error);
+        }
+    }
+
+    // ============ FUNCIONES DE LA APP ============
+    function addLog(msg) {
+        const logDiv = document.getElementById('log-area');
+        if (logDiv) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logDiv.insertBefore(entry, logDiv.firstChild);
+            if (logDiv.children.length > 15) logDiv.removeChild(logDiv.lastChild);
+        }
+        console.log(msg);
+    }
+
+    function showToast(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2500);
+    }
+
+    function addNotification(title, body) {
+        notifications.unshift({ title, body, timestamp: new Date() });
+        if (notifications.length > 50) notifications.pop();
+        if (document.getElementById('screen-notifications').classList.contains('active')) {
+            renderNotifications();
+        }
+        showToast(`📬 ${title}`);
+    }
+
+    function renderNotifications() {
+        const container = document.getElementById('notif-container');
+        if (!container) return;
+        if (notifications.length === 0) {
+            container.innerHTML = '<div style="text-align:center; color:#999; padding:30px;">No hay notificaciones</div>';
+            return;
+        }
+        container.innerHTML = notifications.map(n => `
+            <div class="notification-item">
+                <div class="notification-time">${new Date(n.timestamp).toLocaleTimeString()}</div>
+                <div class="notification-title">${n.title}</div>
+                <div class="notification-body">${n.body}</div>
+            </div>
+        `).join('');
+    }
+
+    async function login() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        
+        try {
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                currentUser = data.user || { id: '1', email, name: 'Usuario' };
+                addLog(`✅ Login exitoso: ${email}`);
+                showToast('¡Bienvenido!');
+                
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                document.getElementById('screen-home').classList.add('active');
+                
+                if (Notification.permission === 'granted') {
+                    await registrarSuscripcionWeb();
+                }
+            } else {
+                showToast('❌ Credenciales inválidas');
+            }
+        } catch (error) {
+            showToast('❌ Error conectando al backend');
+            addLog('❌ Error de conexión: ' + error);
+        }
+    }
+
+    function logout() {
+        currentUser = null;
+        notifications = [];
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-login').classList.add('active');
+        showToast('Sesión cerrada');
+    }
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        
+        document.getElementById(`screen-${tabName}`).classList.add('active');
+        event.target.classList.add('active');
+        
+        if (tabName === 'notifications') renderNotifications();
+        if (tabName === 'profile') {
+            document.getElementById('profile-container').innerHTML = `
+                <div class="session-card">
+                    <div class="session-header">👤 ${currentUser?.name || 'Usuario'}</div>
+                    <div>📧 ${currentUser?.email || '-'}</div>
+                    <div>🔔 Notificaciones: ${notifications.length}</div>
+                    <div>📱 Esperando eventos desde el simulador de PC</div>
+                </div>
+            `;
+        }
+    }
+
+    addLog('🚀 EVCS PWA cargada. Backend: ' + API_URL);
+    addLog('📱 Esperando notificaciones desde el simulador de PC');
+</script>
+</body>
+</html>

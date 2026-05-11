@@ -1,10 +1,10 @@
 import http from "http";
 import { WebSocketServer } from "ws";
-// Use require to avoid strict TypeScript type errors from the external package
 const { OcppServer } = require("@extrawest/node-ts-ocpp");
 import { config } from "../config/env";
-import { db } from "../services/db";
+import { db, memoryDB } from "../services/db";
 import { sendNotificationToUser } from "../services/notifications";
+import { ruleEngine, OcppEvent } from "../services/ruleEngine";
 
 interface ChargePointInfo {
   cpId: string;
@@ -21,55 +21,40 @@ const connectedChargePoints: Map<string, ChargePointInfo> = new Map();
 export function createOcppServer(): void {
   console.log('[OCPP] Iniciando createOcppServer...');
   const PORT = config.ocppPort;
-
   const httpServer = http.createServer();
   const wss = new WebSocketServer({ noServer: true });
 
-  // Try to obtain the central system constructor from the package
   const centralSystem: any = new OcppServer();
 
-  // Handle new WebSocket connections
   httpServer.on("upgrade", (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (ws) => {
       const cpId = req.url?.split("/").pop() || `CP-${Date.now()}`;
       console.log("🔌 Charge Point conectado:", cpId);
-
       centralSystem.addConnection(cpId, ws);
       connectedChargePoints.set(cpId, { cpId });
 
-      // Handle connection close
       ws.on("close", async () => {
         console.log("❌ Charge Point desconectado:", cpId);
         connectedChargePoints.delete(cpId);
-        
-        // Update charge point status in DB
-        try {
-          await db.query(
-            `UPDATE charge_points SET status = 'Unavailable' WHERE id = ?`,
-            [cpId]
-          );
-        } catch (error) {
-          console.error(`Error updating charge point ${cpId} status:`, error);
-        }
+        const cp = memoryDB.chargePoints.find(c => c.id === cpId);
+        if (cp) cp.status = 'Unavailable';
       });
 
       centralSystem.handleRequest(cpId, async (command: any, payload: any) => {
         console.log(`📩 Mensaje recibido de ${cpId}:`, command);
-
-        // command is typically a string like 'BootNotification', 'StartTransaction', etc.
         switch (String(command)) {
           case 'BootNotification':
             return handleBootNotification(cpId, payload);
-
           case 'StartTransaction':
             return await handleStartTransaction(cpId, payload);
-
           case 'StopTransaction':
             return await handleStopTransaction(cpId, payload);
-
+          case 'StatusNotification':
+            return await handleStatusNotification(cpId, payload);
+          case 'MeterValues':
+            return await handleMeterValues(cpId, payload);
           case 'Heartbeat':
             return handleHeartbeat(cpId, payload);
-
           default:
             console.log("⚠️ Acción no manejada:", command);
             return {};
@@ -86,108 +71,159 @@ export function createOcppServer(): void {
 
 function handleBootNotification(cpId: string, boot: any): any {
   console.log("➡️ BootNotification:", boot);
-
-  // Store charge point info
   const cpInfo = connectedChargePoints.get(cpId) || { cpId };
   cpInfo.chargePointVendor = boot.chargePointVendor;
   cpInfo.chargePointModel = boot.chargePointModel;
   cpInfo.firmwareVersion = boot.firmwareVersion;
   cpInfo.serialNumber = boot.chargePointSerialNumber;
-  cpInfo.imsi = boot.imsi;
-  cpInfo.iccid = boot.iccid;
   connectedChargePoints.set(cpId, cpInfo);
-
-  // Save/update charge point in database
-  db.query(
-    `INSERT INTO charge_points (id, name, status) VALUES (?, ?, 'Available')
-     ON DUPLICATE KEY UPDATE last_heartbeat = CURRENT_TIMESTAMP, status = 'Available'`,
-    [cpId, boot.chargePointModel || cpId]
-  ).catch(error => console.error(`Error saving charge point ${cpId}:`, error));
-
-  const bootResponse: any = {
-    currentTime: new Date().toISOString(),
-    interval: 300, // Heartbeat every 5 minutes
-    status: "Accepted",
-  };
-
-  console.log(`✅ BootNotification aceptado para ${cpId}`);
-  return bootResponse;
+  
+  const existingCp = memoryDB.chargePoints.find(c => c.id === cpId);
+  if (!existingCp) {
+    memoryDB.chargePoints.push({ id: cpId, name: boot.chargePointModel || cpId, status: 'Available', last_heartbeat: new Date() });
+  } else {
+    existingCp.status = 'Available';
+    existingCp.last_heartbeat = new Date();
+  }
+  
+  return { currentTime: new Date().toISOString(), interval: 300, status: "Accepted" };
 }
 
 async function handleStartTransaction(cpId: string, start: any): Promise<any> {
   console.log("⚡ StartTransaction:", start);
-
   const transactionId = Math.floor(Math.random() * 999999);
-
-  try {
-    // Insert transaction into database
-    const [result] = await db.query(
-      `INSERT INTO transactions (charge_point_id, user_id, status) 
-       VALUES (?, ?, 'Active')`,
-      [cpId, start.idTag || null]
-    );
-
-    console.log(`✅ Transacción iniciada: ID ${transactionId} en ${cpId}`);
-
-    // Send notification if user_id available
-    if (start.idTag) {
-      sendNotificationToUser({
-        userId: start.idTag,
-        title: "Carga iniciada",
-        body: `Tu sesión de carga ha comenzado en ${cpId}`
-      }).catch(error => console.error("Error sending notification:", error));
-    }
-
-    return { transactionId };
-  } catch (error) {
-    console.error("Error handling StartTransaction:", error);
-    return { transactionId };
+  const userId = start.idTag || 'anonymous';
+  
+  memoryDB.transactions.push({
+    id: transactionId,
+    charge_point_id: cpId,
+    user_id: userId,
+    status: 'Active',
+    start_time: new Date().toISOString()
+  });
+  
+  console.log(`✅ Transacción iniciada: ID ${transactionId} en ${cpId}`);
+  
+  const event: OcppEvent = {
+    transactionId: transactionId.toString(),
+    chargePointId: cpId,
+    userId: userId,
+    eventType: 'StartTransaction',
+    timestamp: new Date().toISOString(),
+  };
+  
+  const notification = ruleEngine.evaluate(event);
+  if (notification && userId !== 'anonymous') {
+    await sendNotificationToUser({
+      userId: userId,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data,
+    }).catch(error => console.error("Error sending notification:", error));
   }
+  
+  return { transactionId };
 }
 
 async function handleStopTransaction(cpId: string, stop: any): Promise<any> {
   console.log("⛔ StopTransaction:", stop);
-
-  try {
-    // Update transaction
-    const [result] = await db.query(
-      `UPDATE transactions 
-       SET stop_time = CURRENT_TIMESTAMP, status = 'Completed', 
-           energy_delivered = ? 
-       WHERE charge_point_id = ? AND status = 'Active'
-       ORDER BY start_time DESC LIMIT 1`,
-      [stop.meterStop ? (stop.meterStop / 1000) : 0, cpId]
-    );
-
-    console.log(`✅ Transacción completada en ${cpId}`);
-
-    // Send notification
-    if (stop.idTag) {
-      sendNotificationToUser({
-        userId: stop.idTag,
-        title: "Carga completada",
-        body: `Tu sesión de carga ha finalizado. Energía: ${stop.meterStop ? (stop.meterStop / 1000).toFixed(2) + ' kWh' : 'N/A'}`
-      }).catch(error => console.error("Error sending notification:", error));
-    }
-
-    return {};
-  } catch (error) {
-    console.error("Error handling StopTransaction:", error);
-    return {};
+  
+  const transaction = memoryDB.transactions.find(tx => tx.charge_point_id === cpId && tx.status === 'Active');
+  if (transaction) {
+    transaction.status = 'Completed';
+    transaction.stop_time = new Date().toISOString();
+    transaction.energy_delivered = stop.meterStop ? (stop.meterStop / 1000) : 0;
   }
+  
+  console.log(`✅ Transacción completada en ${cpId}`);
+  
+  const event: OcppEvent = {
+    chargePointId: cpId,
+    userId: stop.idTag || 'anonymous',
+    eventType: 'StopTransaction',
+    status: 'Finishing',
+    timestamp: new Date().toISOString(),
+  };
+  
+  const notification = ruleEngine.evaluate(event);
+  
+  if (stop.idTag) {
+    const finalTitle = notification?.title || "✨ Carga finalizada";
+    const finalBody = notification?.body || `Tu sesión de carga ha finalizado. Energía: ${stop.meterStop ? (stop.meterStop / 1000).toFixed(2) + ' kWh' : 'N/A'}`;
+    await sendNotificationToUser({
+      userId: stop.idTag,
+      title: finalTitle,
+      body: finalBody,
+      data: notification?.data || { chargePointId: cpId },
+    }).catch(error => console.error("Error sending notification:", error));
+  }
+  
+  return {};
 }
 
 function handleHeartbeat(cpId: string, heartbeat: any): any {
   console.log(`💓 Heartbeat recibido de ${cpId}`);
-
-  // Update last heartbeat in database
-  db.query(
-    `UPDATE charge_points SET last_heartbeat = CURRENT_TIMESTAMP WHERE id = ?`,
-    [cpId]
-  ).catch(error => console.error(`Error updating heartbeat for ${cpId}:`, error));
-
-  return {
-    currentTime: new Date().toISOString(),
-  };
+  const cp = memoryDB.chargePoints.find(c => c.id === cpId);
+  if (cp) cp.last_heartbeat = new Date();
+  return { currentTime: new Date().toISOString() };
 }
 
+async function handleStatusNotification(cpId: string, status: any): Promise<any> {
+  console.log("📊 StatusNotification:", status);
+  const event: OcppEvent = {
+    chargePointId: cpId,
+    userId: 'system',
+    eventType: 'StatusNotification',
+    status: status.connectorStatus,
+    timestamp: new Date().toISOString(),
+  };
+  const notification = ruleEngine.evaluate(event);
+  if (notification && notification.shouldNotify) {
+    console.log(`[StatusNotification] Notificación disparada: ${notification.ruleTriggered}`);
+  }
+  return {};
+}
+
+async function handleMeterValues(cpId: string, meterData: any): Promise<any> {
+  console.log("📈 MeterValues:", meterData);
+  let soc: number | undefined;
+  let power: number | undefined;
+  
+  if (Array.isArray(meterData.sampledValue)) {
+    for (const sample of meterData.sampledValue) {
+      if (sample.measurand === 'SoC') soc = parseFloat(sample.value);
+      else if (sample.measurand === 'Power.Active.Import.Register') power = parseFloat(sample.value);
+    }
+  }
+  
+  const transaction = memoryDB.transactions.find(tx => tx.charge_point_id === cpId && tx.status === 'Active');
+  if (!transaction) {
+    console.log("⚠️ No active transaction found for meter values");
+    return {};
+  }
+  
+  const userId = transaction.user_id || 'anonymous';
+  
+  const event: OcppEvent = {
+    transactionId: transaction.id.toString(),
+    chargePointId: cpId,
+    userId: userId,
+    eventType: 'MeterValues',
+    soc: soc,
+    power: power,
+    timestamp: new Date().toISOString(),
+  };
+  
+  const notification = ruleEngine.evaluate(event);
+  if (notification && notification.shouldNotify && userId !== 'anonymous') {
+    await sendNotificationToUser({
+      userId: userId,
+      title: notification.title,
+      body: notification.body,
+      data: notification.data,
+    }).catch(error => console.error("Error sending notification:", error));
+    console.log(`[MeterValues] Notificación enviada: ${notification.ruleTriggered}`);
+  }
+  
+  return {};
+}

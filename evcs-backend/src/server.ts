@@ -1,6 +1,8 @@
 console.log('🟢 [DEBUG] server.ts iniciado');
 import express, { Request, Response } from "express";
-import { createOcppServer } from "./ocpp/index";// <- IMPORTANTE: .js
+import cors from "cors";  // <-- AGREGAR ESTA LÍNEA
+
+import { createOcppServer } from "./ocpp/index";
 import { db } from "./services/db";
 import { config } from "./config/env";
 import apiRoutes from "./api/routes";
@@ -13,6 +15,7 @@ console.log(`PORT=${process.env.PORT || 'unset'}; OCPP_PORT=${process.env.OCPP_P
 console.log(`Using Steve DB host: ${process.env.STEVE_DB_HOST || 'unset'}`);
 
 const app = express();
+app.use(cors());        // <-- AGREGAR ESTA LÍNEA (ANTES de express.json)
 app.use(express.json());
 
 app.get("/", (req: Request, res: Response) => {
@@ -57,8 +60,9 @@ process.on('SIGINT', () => {
 // Initialize OCPP server (non-blocking)
 createOcppServer();
 
-// Start API server
-app.listen(PORT, () => {
+// Start API server (escucha en todas las interfaces)
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API listening on port ${PORT}`);
   console.log(`📍 API routes available at http://localhost:${PORT}/api`);
+  console.log(`📍 Network access: http://10.125.19.125:${PORT}/api`);
 });
