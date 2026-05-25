@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -11,7 +11,6 @@ import ProfileScreen from '../screens/ProfileScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Navegación de pestañas (después del login)
 const AppTabs = () => {
   return (
     <Tab.Navigator
@@ -31,16 +30,25 @@ const AppTabs = () => {
 };
 
 export const AppNavigator = () => {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, logout } = useAuthStore();
+
+  // Forzar logout al inicio para resetear el estado
+  useEffect(() => {
+    console.log('[AppNavigator] Verificando estado inicial...');
+    // Si hay un usuario pero no debería, forzar logout
+    logout();
+  }, []);
 
   if (isLoading) {
     return null;
   }
 
+  console.log('[AppNavigator] isAuthenticated:', isAuthenticated());
+
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
+        {isAuthenticated() ? (
           <Stack.Screen name="Main" component={AppTabs} />
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />

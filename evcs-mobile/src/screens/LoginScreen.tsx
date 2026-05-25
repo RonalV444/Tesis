@@ -28,18 +28,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading, error } = useAuthStore();
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      console.warn('[LoginScreen] Email y contraseña requeridos');
-      return;
-    }
+const handleLogin = async () => {
+  if (!email || !password) {
+    console.warn('[LoginScreen] Email y contraseña requeridos');
+    return;
+  }
 
-    const success = await login(email, password);
-    if (success) {
-      console.log('[LoginScreen] Navegando a Home');
-      navigation.replace('Home');
-    }
-  };
+  const success = await login(email, password);
+  if (success) {
+    console.log('[LoginScreen] Login exitoso, AppNavigator mostrará Main automáticamente');
+    // No es necesario navegar manualmente. El cambio en `isAuthenticated` hará que el `AppNavigator` 
+    // pase de mostrar la pantalla `Login` a mostrar la pantalla `Main`.
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>

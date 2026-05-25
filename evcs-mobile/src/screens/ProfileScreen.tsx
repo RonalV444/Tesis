@@ -52,30 +52,29 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      setLoading(true);
-      console.log('[ProfileScreen] Iniciando logout...');
+const handleLogout = async () => {
+  try {
+    setLoading(true);
+    console.log('[ProfileScreen] Iniciando logout...');
 
-      if (deviceToken && apiService.getUserId()) {
-        try {
-          await apiService.deactivateDeviceToken(deviceToken);
-          console.log('[ProfileScreen] Token desactivado');
-        } catch (error) {
-          console.warn('[ProfileScreen] Error desactivando token:', error);
-        }
+    if (deviceToken && apiService.getUserId()) {
+      try {
+        await apiService.deactivateDeviceToken(deviceToken);
+        console.log('[ProfileScreen] Token desactivado');
+      } catch (error) {
+        console.warn('[ProfileScreen] Error desactivando token:', error);
       }
-
-      notificationService.clearNotificationListeners();
-      logout();
-      console.log('[ProfileScreen] Logout completado');
-      navigation.replace('Login');
-    } catch (error) {
-      console.error('[ProfileScreen] Error en logout:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+
+    notificationService.clearNotificationListeners();
+    logout(); // Esto debe limpiar user y token
+    console.log('[ProfileScreen] Logout completado');
+  } catch (error) {
+    console.error('[ProfileScreen] Error en logout:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getStatistics = () => {
     const today = new Date();

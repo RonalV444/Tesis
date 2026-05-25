@@ -33,7 +33,16 @@ export function initializeFirebase() {
 }
 
 /**
+ * Verificar si es un token mock (para desarrollo)
+ */
+function isMockToken(token: string): boolean {
+  if (!token) return false;
+  return token.startsWith('mock-token') || token === 'mock-token';
+}
+
+/**
  * Enviar notificación push usando Firebase Admin SDK
+ * Soporta tokens mock (simula éxito sin enviar)
  */
 export async function sendPushNotificationFirebase({
   title,
@@ -46,6 +55,18 @@ export async function sendPushNotificationFirebase({
   token: string;
   data?: Record<string, string>;
 }) {
+  // Si es mock token, simular éxito sin enviar a Firebase
+  if (isMockToken(token)) {
+    console.log(`[FCM] 🔔 Simulando envío de notificación (mock token): ${title}`);
+    console.log(`[FCM] Body: ${body}`);
+    console.log(`[FCM] Token: ${token.substring(0, 50)}...`);
+    return {
+      success: true,
+      messageId: `mock-${Date.now()}`,
+      simulated: true
+    };
+  }
+
   if (!firebaseApp) {
     initializeFirebase();
   }
@@ -92,36 +113,39 @@ export async function sendMulticastNotification({
   tokens: string[];
   data?: Record<string, string>;
 }) {
-  if (!firebaseApp) {
-    initializeFirebase();
+  // Filtrar tokens mock y reales
+  const mockTokens = tokens.filter(t => isMockToken(t));
+  const realTokens = tokens.filter(t => !isMockToken(t));
+
+  let successCount = 0;
+  let failureCount = 0;
+  const results = [];
+
+  // Procesar mock tokens (simular éxito)
+  for (const token of mockTokens) {
+    console.log(`[FCM] 🔔 Simulando envío a mock token: ${title}`);
+    results.push({ token, success: true, messageId: `mock-${Date.now()}`, simulated: true });
+    successCount++;
   }
 
-  if (tokens.length === 0) {
-    console.warn('⚠️ No hay tokens para enviar notificaciones');
-    return {
-      success: false,
-      error: 'No tokens provided',
+  // Procesar tokens reales
+  if (realTokens.length > 0) {
+    if (!firebaseApp) {
+      initializeFirebase();
+    }
+
+    const message = {
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        timestamp: new Date().toISOString(),
+        ...data,
+      },
     };
-  }
 
-  const message = {
-    notification: {
-      title,
-      body,
-    },
-    data: {
-      timestamp: new Date().toISOString(),
-      ...data,
-    },
-  };
-
-  try {
-    // Enviar a cada token por separado (más compatible)
-    const results = [];
-    let successCount = 0;
-    let failureCount = 0;
-
-    for (const token of tokens) {
+    for (const token of realTokens) {
       try {
         const response = await admin.messaging().send({
           ...message,
@@ -134,43 +158,36 @@ export async function sendMulticastNotification({
         failureCount++;
       }
     }
-
-    console.log(`✅ Notificaciones enviadas: ${successCount}/${tokens.length}`);
-    
-    if (failureCount > 0) {
-      console.warn(`⚠️ Fallos: ${failureCount}`);
-      results.forEach((resp: any) => {
-        if (!resp.success) {
-          console.error(`  - Token ${resp.token}: ${resp.error}`);
-        }
-      });
-    }
-
-    return {
-      success: successCount > 0,
-      successCount,
-      failureCount,
-      results,
-    };
-  } catch (error) {
-    console.error('❌ Error enviando notificaciones masivas:', error);
-    return {
-      success: false,
-      error: String(error),
-    };
   }
+
+  console.log(`✅ Notificaciones procesadas: ${successCount} éxitos, ${failureCount} fallos`);
+  
+  return {
+    success: successCount > 0,
+    successCount,
+    failureCount,
+    results,
+  };
 }
 
 /**
  * Suscribir tokens a un tema
  */
 export async function subscribeToTopic(tokens: string[], topic: string) {
+  // Filtrar mock tokens (no se pueden suscribir a temas reales)
+  const realTokens = tokens.filter(t => !isMockToken(t));
+  
+  if (realTokens.length === 0) {
+    console.log(`[FCM] Simulando suscripción al tema "${topic}" para ${tokens.length} mock tokens`);
+    return { success: true, successCount: tokens.length };
+  }
+
   if (!firebaseApp) {
     initializeFirebase();
   }
 
   try {
-    const response = await admin.messaging().subscribeToTopic(tokens, topic);
+    const response = await admin.messaging().subscribeToTopic(realTokens, topic);
     console.log(`✅ Tokens suscritos al tema "${topic}"`);
     return {
       success: true,
@@ -189,12 +206,16 @@ export async function subscribeToTopic(tokens: string[], topic: string) {
  * Verificar token de dispositivo
  */
 export async function isValidToken(token: string): Promise<boolean> {
+  if (isMockToken(token)) {
+    console.log(`[FCM] ✅ Mock token considerado válido para demostración`);
+    return true;
+  }
+
   if (!firebaseApp) {
     initializeFirebase();
   }
 
   try {
-    // Intentar enviar un mensaje de prueba
     await admin.messaging().send({
       token,
       data: { test: 'true' },

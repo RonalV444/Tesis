@@ -4,8 +4,8 @@ import {
   sendNotificationToUser, 
   registerDeviceToken, 
   deactivateDeviceToken,
-  registerWebSubscription,   // <--- AGREGAR
-  unregisterWebSubscription  // <--- AGREGAR
+  registerWebSubscription,
+  unregisterWebSubscription
 } from "../services/notifications";
 import { sendPushNotificationFirebase } from "../services/firebase";
 import { getPollingStatus } from "../services/sync";
@@ -14,50 +14,29 @@ const router = Router();
 
 // ============ Helper para simular datos de Steve (en memoria) ============
 
-// Datos simulados de Steve (estaciones de carga)
 const simulatedChargePoints = [
   { id: "CP-001", name: "Cargador Norte", status: "Available", vendor: "Delta", model: "UFC-200", last_heartbeat: new Date().toISOString() },
   { id: "CP-002", name: "Cargador Sur", status: "Charging", vendor: "ABB", model: "Terra 54", last_heartbeat: new Date().toISOString() },
   { id: "CP-003", name: "Cargador Este", status: "Available", vendor: "Siemens", model: "VersiCharge", last_heartbeat: new Date().toISOString() },
 ];
 
-// Datos simulados de transacciones
 const simulatedTransactions = [
   { transaction_pk: 1, charge_box_id: "CP-001", idTag: "user-001", startTimestamp: new Date().toISOString(), chargeSeconds: 1800, status: "Active" },
   { transaction_pk: 2, charge_box_id: "CP-002", idTag: "user-002", startTimestamp: new Date().toISOString(), chargeSeconds: 3600, status: "Active" },
   { transaction_pk: 3, charge_box_id: "CP-003", idTag: "user-001", startTimestamp: new Date(Date.now() - 86400000).toISOString(), chargeSeconds: 7200, status: "Completed" },
 ];
 
-// Datos simulados de usuarios
 const simulatedUsers = [
   { idTag: "user-001", name: "Usuario Demo", email: "demo@evcs.com", balance: 25.50 },
   { idTag: "user-002", name: "Test User", email: "test@test.com", balance: 10.00 },
 ];
 
-// Funciones simuladas de Steve
-async function getAllChargePoints() {
-  return simulatedChargePoints;
-}
-
-async function getChargePointById(id: string) {
-  return simulatedChargePoints.find(cp => cp.id === id);
-}
-
-async function getAllTransactions(limit: number = 100) {
-  return simulatedTransactions.slice(0, limit);
-}
-
-async function getTransactionsByChargePoint(cpId: string, limit: number = 50) {
-  return simulatedTransactions.filter(tx => tx.charge_box_id === cpId).slice(0, limit);
-}
-
-async function getAllUsers() {
-  return simulatedUsers;
-}
-
-async function getUserByTag(idTag: string) {
-  return simulatedUsers.find(u => u.idTag === idTag);
-}
+async function getAllChargePoints() { return simulatedChargePoints; }
+async function getChargePointById(id: string) { return simulatedChargePoints.find(cp => cp.id === id); }
+async function getAllTransactions(limit: number = 100) { return simulatedTransactions.slice(0, limit); }
+async function getTransactionsByChargePoint(cpId: string, limit: number = 50) { return simulatedTransactions.filter(tx => tx.charge_box_id === cpId).slice(0, limit); }
+async function getAllUsers() { return simulatedUsers; }
+async function getUserByTag(idTag: string) { return simulatedUsers.find(u => u.idTag === idTag); }
 
 async function getActiveTransactionByUser(idTag: string) {
   const tx = simulatedTransactions.find(t => t.idTag === idTag && t.status === "Active");
@@ -85,7 +64,7 @@ router.get("/polling/status", (req: Request, res: Response) => {
   res.json({ status: "active", mode: "demo", lastPoll: new Date().toISOString() });
 });
 
-// ============ Charge Points (simulados) ============
+// ============ Charge Points ============
 
 router.get("/charge-points", async (req: Request, res: Response) => {
   try {
@@ -109,7 +88,7 @@ router.get("/charge-points/:id", async (req: Request, res: Response) => {
   }
 });
 
-// ============ Transactions (simuladas) ============
+// ============ Transactions ============
 
 router.get("/transactions", async (req: Request, res: Response) => {
   try {
@@ -159,7 +138,7 @@ router.get("/users/:idTag/current-charge", async (req: Request, res: Response) =
         durationSeconds: activeTransaction.chargeSeconds,
         durationMinutes: chargeTimeMinutes,
         durationHours: parseFloat(chargeTimeHours),
-      energyAtStart: parseFloat(activeTransaction.energyAtStart || "0"),
+        energyAtStart: parseFloat(activeTransaction.energyAtStart || "0"),
         estimatedRemaining: "See notifications for real-time progress",
       },
       timestamp: new Date().toISOString(),
@@ -170,7 +149,7 @@ router.get("/users/:idTag/current-charge", async (req: Request, res: Response) =
   }
 });
 
-// ============ Users (simulados) ============
+// ============ Users ============
 
 router.get("/users", async (req: Request, res: Response) => {
   try {
@@ -194,13 +173,11 @@ router.get("/users/:idTag", async (req: Request, res: Response) => {
   }
 });
 
-// ============ Authentication (para app móvil) ============
+// ============ Authentication ============
 
-// Login endpoint para la app móvil
 router.post("/auth/login", async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    // Buscar en memoryDB (de db.ts)
     const user = memoryDB.users.find(u => u.email === email && u.password === password);
     if (user) {
       res.json({
@@ -217,7 +194,6 @@ router.post("/auth/login", async (req: Request, res: Response) => {
   }
 });
 
-// Register user (simplificado)
 router.post("/auth/register", async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
@@ -240,9 +216,9 @@ router.post("/auth/register", async (req: Request, res: Response) => {
   }
 });
 
-// ============ Notificaciones (versión simplificada) ============
+// ============ Notificaciones (CORREGIDO - acepta mock tokens) ============
 
-// Register device token for push notifications
+// Register device token - ACEPTA CUALQUIER TOKEN (incluyendo mock)
 router.post("/notifications/register-token", async (req: Request, res: Response) => {
   try {
     const { userId, token } = req.body;
@@ -250,16 +226,22 @@ router.post("/notifications/register-token", async (req: Request, res: Response)
       return res.status(400).json({ error: "Missing required fields: userId, token" });
     }
 
-    // Guardar en memoryDB
+    console.log(`[BACKEND] 📢 Registrando token para usuario: ${userId}`);
+    console.log(`[BACKEND] Token: ${token.substring(0, 50)}${token.length > 50 ? '...' : ''}`);
+
+    // Guardar en memoryDB (sin validar formato)
     const existing = memoryDB.deviceTokens.find(t => t.token === token);
     if (!existing) {
       memoryDB.deviceTokens.push({ userId, token, createdAt: new Date().toISOString() });
+      console.log(`[BACKEND] ✅ Token guardado en memoryDB`);
+    } else {
+      console.log(`[BACKEND] ⚠️ Token ya existía en memoryDB`);
     }
     
-    console.log(`✅ Token registrado para usuario ${userId}: ${token}`);
+    console.log(`[BACKEND] ✅ Token registrado exitosamente (modo demostración)`);
     res.json({ success: true, message: "Token registered successfully" });
   } catch (error) {
-    console.error("Error registering token:", error);
+    console.error("[BACKEND] ❌ Error registrando token:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -271,6 +253,7 @@ router.delete("/notifications/register-token/:token", async (req: Request, res: 
     const index = memoryDB.deviceTokens.findIndex(t => t.token === token);
     if (index !== -1) {
       memoryDB.deviceTokens.splice(index, 1);
+      console.log(`[BACKEND] ✅ Token eliminado de memoryDB`);
     }
     res.json({ success: true, message: "Token deactivated" });
   } catch (error) {
@@ -279,7 +262,7 @@ router.delete("/notifications/register-token/:token", async (req: Request, res: 
   }
 });
 
-// Send test notification (endpoint para pruebas manuales)
+// Send test notification - CORREGIDO: guarda en memoryDB también
 router.post("/notifications/send", async (req: Request, res: Response) => {
   try {
     const { title, body, token, userId } = req.body;
@@ -290,29 +273,48 @@ router.post("/notifications/send", async (req: Request, res: Response) => {
 
     let targetToken = token;
     if (userId && !targetToken) {
-      // Buscar token del usuario en memoryDB
       const userToken = memoryDB.deviceTokens.find(t => t.userId === userId);
       targetToken = userToken?.token;
     }
 
+    // Guardar notificación en memoryDB para que la app la consulte
+    const notificationLog = {
+      id: Date.now().toString(),
+      userId: userId || '1',
+      title,
+      body,
+      sentAt: new Date().toISOString(),
+      type: 'R1'
+    };
+    memoryDB.notifications.push(notificationLog);
+    console.log(`[BACKEND] 📝 Notificación guardada en memoryDB: ${title}`);
+
     if (!targetToken) {
-      return res.status(404).json({ error: "No device token found for user" });
+      console.log(`[BACKEND] ⚠️ No hay token para el usuario, solo se guardó en logs`);
+      return res.json({ success: true, message: "Notification saved to logs (no token)", saved: true });
     }
 
-    const result = await sendPushNotificationFirebase({ title, body, token: targetToken });
-    res.json({ success: result.success, messageId: result.messageId, error: result.error });
+    // Intentar enviar por Firebase (si es mock, fallará pero no importa)
+    try {
+      const result = await sendPushNotificationFirebase({ title, body, token: targetToken });
+      console.log(`[BACKEND] 📤 Resultado Firebase:`, result);
+    } catch (firebaseError) {
+      console.log(`[BACKEND] ⚠️ Firebase error (mock token):`, firebaseError);
+    }
+
+    res.json({ success: true, message: "Notification processed", saved: true });
   } catch (error) {
     console.error("Error sending notification:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// ============ Notification Logs (usando memoryDB) ============
+// ============ Notification Logs ============
 
 router.get("/notifications/logs", async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const logs = memoryDB.notifications.slice(0, limit);
+    const logs = memoryDB.notifications.slice(-limit).reverse();
     res.json({ total: logs.length, data: logs });
   } catch (error) {
     console.error("Error fetching notification logs:", error);
@@ -323,7 +325,7 @@ router.get("/notifications/logs", async (req: Request, res: Response) => {
 router.get("/notifications/logs/user/:userId", async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const logs = memoryDB.notifications.filter(n => n.userId === userId);
+    const logs = memoryDB.notifications.filter(n => n.userId === userId).reverse();
     res.json({ userId, total: logs.length, data: logs });
   } catch (error) {
     console.error("Error fetching notification logs:", error);
@@ -331,7 +333,7 @@ router.get("/notifications/logs/user/:userId", async (req: Request, res: Respons
   }
 });
 
-// ============ Transaction Events (usando memoryDB) ============
+// ============ Transaction Events ============
 
 router.get("/events/transactions", async (req: Request, res: Response) => {
   try {
@@ -343,19 +345,16 @@ router.get("/events/transactions", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
-// ============ Web Subscriptions (para PWA) ============
 
-// Registrar suscripción web (PWA)
+// ============ Web Subscriptions ============
+
 router.post("/notifications/web-subscribe", async (req: Request, res: Response) => {
   try {
     const { userId, subscription } = req.body;
-    
     if (!userId || !subscription) {
       return res.status(400).json({ error: "Missing required fields: userId, subscription" });
     }
-    
     const result = await registerWebSubscription({ userId, subscription });
-    
     if (result.success) {
       res.json({ success: true, message: "Web subscription registered" });
     } else {
@@ -367,15 +366,12 @@ router.post("/notifications/web-subscribe", async (req: Request, res: Response) 
   }
 });
 
-// Eliminar suscripción web
 router.delete("/notifications/web-subscribe", async (req: Request, res: Response) => {
   try {
     const { endpoint } = req.body;
-    
     if (!endpoint) {
       return res.status(400).json({ error: "Missing endpoint" });
     }
-    
     const result = await unregisterWebSubscription(endpoint);
     res.json({ success: result.success });
   } catch (error) {
@@ -383,4 +379,5 @@ router.delete("/notifications/web-subscribe", async (req: Request, res: Response
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 export default router;

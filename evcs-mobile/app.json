@@ -8,11 +8,11 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#667eea",
-      "hideExponentText": true
+      "backgroundColor": "#667eea"
     },
     "updates": {
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/976bc11e-e564-4670-9cc3-515eb0c94cb4"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -26,7 +26,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#667eea"
       },
-      "package": "com.evcs.notifications"
+      "package": "com.evcs.notifications",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,16 +37,19 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#667eea",
-          "sounds": [
-            "./assets/notification.wav"
-          ]
+          "color": "#667eea"
         }
       ]
     ],
     "extra": {
       "apiUrl": "http://localhost:3000/api",
-      "firebaseProjectId": "evcs-notifications"
+      "eas": {
+        "projectId": "976bc11e-e564-4670-9cc3-515eb0c94cb4"
+      }
+    },
+    "owner": "ronalv",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

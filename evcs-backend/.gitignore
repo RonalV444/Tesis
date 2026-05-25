@@ -53,3 +53,9 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+evcsnotifications-firebase-adminsdk-fbsvc-97851afb6e.json
+*firebase-adminsdk*.json
+
+*firebase-adminsdk*.json
+*.json.key

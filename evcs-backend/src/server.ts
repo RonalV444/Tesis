@@ -48,7 +48,7 @@ try {
 const PORT = config.port;
 
 // Initialize transaction polling
-initializePolling();
+//initializePolling();
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
