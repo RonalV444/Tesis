@@ -43,12 +43,22 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       const response = await apiService.getNotificationLogs(userId);
 
+      const formattedNotifications = response.data.map((log: any) => ({
+        id: log.id,
+        title: log.title,
+        body: log.body,
+        timestamp: log.sentAt,
+        read: false,
+        type: log.type,
+      }));
+
       set({
-        notifications: response.data,
+        notifications: formattedNotifications,
+        receivedNotifications: formattedNotifications,
         isLoading: false,
         error: null,
       });
-      console.log('[NotificationStore] Notificaciones cargadas:', response.data.length);
+      console.log('[NotificationStore] Notificaciones cargadas:', formattedNotifications.length);
     } catch (error: any) {
       const errorMessage = error.message || 'Error obteniendo notificaciones';
       set({
@@ -61,21 +71,37 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   addReceivedNotification: (notification: any) => {
     try {
+      let title, body, type;
+      
+      if (notification.request?.content) {
+        title = notification.request.content.title;
+        body = notification.request.content.body;
+        type = notification.request.content.data?.type || 'R1';
+      } else {
+        title = notification.title;
+        body = notification.body;
+        type = notification.type || 'R1';
+      }
+
       const newNotification: Notification = {
         id: `notif-${Date.now()}`,
-        title: notification.request?.content?.title || 'Notificación',
-        body: notification.request?.content?.body || '',
+        title: title || 'Notificación',
+        body: body || '',
         timestamp: new Date().toISOString(),
         read: false,
-        type: notification.request?.content?.data?.type || 'unknown',
+        type: type,
       };
 
       console.log('[NotificationStore] Nueva notificación recibida:', newNotification.title);
 
-      set((state) => ({
-        receivedNotifications: [newNotification, ...state.receivedNotifications].slice(0, 50),
-        unreadCount: state.unreadCount + 1,
-      }));
+      set((state) => {
+        const updatedList = [newNotification, ...state.receivedNotifications].slice(0, 100);
+        return {
+          receivedNotifications: updatedList,
+          notifications: updatedList,
+          unreadCount: state.unreadCount + 1,
+        };
+      });
     } catch (error) {
       console.error('[NotificationStore] Error procesando notificación:', error);
     }
@@ -99,6 +125,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       receivedNotifications: state.receivedNotifications.map((n) =>
         n.id === notificationId ? { ...n, read: true } : n
       ),
+      notifications: state.notifications.map((n) =>
+        n.id === notificationId ? { ...n, read: true } : n
+      ),
       unreadCount: Math.max(0, state.unreadCount - 1),
     }));
   },
@@ -106,6 +135,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   markAllAsRead: () => {
     set((state) => ({
       receivedNotifications: state.receivedNotifications.map((n) => ({ ...n, read: true })),
+      notifications: state.notifications.map((n) => ({ ...n, read: true })),
       unreadCount: 0,
     }));
   },

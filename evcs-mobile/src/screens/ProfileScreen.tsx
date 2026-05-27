@@ -1,4 +1,4 @@
-// Pantalla de Perfil
+// Pantalla de Perfil - VERSIÓN CORREGIDA
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  TouchableOpacity,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
@@ -52,29 +51,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     }
   };
 
-const handleLogout = async () => {
-  try {
-    setLoading(true);
-    console.log('[ProfileScreen] Iniciando logout...');
+  const handleLogout = async () => {
+    try {
+      setLoading(true);
+      console.log('[ProfileScreen] Iniciando logout...');
 
-    if (deviceToken && apiService.getUserId()) {
-      try {
-        await apiService.deactivateDeviceToken(deviceToken);
-        console.log('[ProfileScreen] Token desactivado');
-      } catch (error) {
-        console.warn('[ProfileScreen] Error desactivando token:', error);
+      if (deviceToken && apiService.getUserId()) {
+        try {
+          await apiService.deactivateDeviceToken(deviceToken);
+          console.log('[ProfileScreen] Token desactivado');
+        } catch (error) {
+          console.warn('[ProfileScreen] Error desactivando token:', error);
+        }
       }
-    }
 
-    notificationService.clearNotificationListeners();
-    logout(); // Esto debe limpiar user y token
-    console.log('[ProfileScreen] Logout completado');
-  } catch (error) {
-    console.error('[ProfileScreen] Error en logout:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+      notificationService.clearNotificationListeners();
+      logout(); // Esto cambia isAuthenticated a false
+      console.log('[ProfileScreen] Logout completado');
+      // No necesitas navegar manualmente, el AppNavigator mostrará Login
+    } catch (error) {
+      console.error('[ProfileScreen] Error en logout:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getStatistics = () => {
     const today = new Date();
@@ -90,15 +90,7 @@ const handleLogout = async () => {
       return date >= last24h;
     }).length;
 
-    const ruleStats = {
-      R1: notifications.filter((n: any) => n.type === 'R1').length,
-      R2: notifications.filter((n: any) => n.type === 'R2').length,
-      R3: notifications.filter((n: any) => n.type === 'R3').length,
-      R4: notifications.filter((n: any) => n.type === 'R4').length,
-      R5: notifications.filter((n: any) => n.type === 'R5').length,
-    };
-
-    return { todayCount, last24hCount, ruleStats };
+    return { todayCount, last24hCount };
   };
 
   const stats = getStatistics();
@@ -176,25 +168,6 @@ const handleLogout = async () => {
               <Text style={styles.statValue}>{stats.last24hCount}</Text>
               <Text style={styles.statLabel}>Últimas 24h</Text>
             </View>
-          </View>
-
-          {/* Rule Distribution */}
-          <View style={styles.ruleDistribution}>
-            <Text style={styles.ruleDistributionTitle}>Por Regla</Text>
-
-            {[
-              { rule: 'R1', label: 'SOC ≥ 90%', count: stats.ruleStats.R1, color: '#fbbf24' },
-              { rule: 'R2', label: 'Tiempo < 10min', count: stats.ruleStats.R2, color: '#60a5fa' },
-              { rule: 'R3', label: 'Disponible', count: stats.ruleStats.R3, color: '#34d399' },
-              { rule: 'R4', label: 'Finalizando', count: stats.ruleStats.R4, color: '#a78bfa' },
-              { rule: 'R5', label: 'Error', count: stats.ruleStats.R5, color: '#f87171' },
-            ].map(({ rule, label, count, color }) => (
-              <View key={rule} style={styles.ruleRow}>
-                <View style={[styles.ruleColor, { backgroundColor: color }]} />
-                <Text style={styles.ruleLabel}>{label}</Text>
-                <Text style={styles.ruleCount}>{count}</Text>
-              </View>
-            ))}
           </View>
         </View>
 
@@ -392,42 +365,6 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 11,
     color: '#999',
-  },
-  ruleDistribution: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-  },
-  ruleDistributionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 10,
-  },
-  ruleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  ruleColor: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 10,
-  },
-  ruleLabel: {
-    flex: 1,
-    fontSize: 12,
-    color: '#333',
-  },
-  ruleCount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#667eea',
-    minWidth: 20,
-    textAlign: 'right',
   },
   infoBox: {
     backgroundColor: '#fff',

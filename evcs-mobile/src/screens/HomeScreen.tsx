@@ -17,7 +17,12 @@ import { EmptyState } from '../components/index';
 
 const HomeScreen = () => {
   const { user } = useAuthStore();
-  const { receivedNotifications, fetchNotifications, isLoading, unreadCount, addReceivedNotification } = useNotificationStore();
+  const { 
+    receivedNotifications, 
+    fetchNotifications, 
+    addReceivedNotification,
+    unreadCount 
+  } = useNotificationStore();
   const [refreshing, setRefreshing] = useState(false);
 
   // Inicializar listeners de notificaciones al montar
@@ -27,9 +32,9 @@ const HomeScreen = () => {
       
       // Configurar listeners para recibir notificaciones en tiempo real
       notificationService.setupNotificationListeners((notification) => {
-        console.log('[HomeScreen] 🔔 Notificación recibida:', notification.request.content.title);
+        console.log('[HomeScreen] 🔔 Notificación recibida en tiempo real:', notification.title);
         
-        // Agregar a la lista de notificaciones recibidas
+        // Agregar a la lista de notificaciones recibidas (esto actualiza la UI automáticamente)
         addReceivedNotification(notification);
       });
 
@@ -39,7 +44,7 @@ const HomeScreen = () => {
         notificationService.clearNotificationListeners();
       };
     }
-  }, [user?.id]);
+  }, [user?.id, addReceivedNotification]);
 
   useFocusEffect(
     React.useCallback(() => {

@@ -22,7 +22,6 @@ class NotificationService {
     try {
       console.log('[Notifications] Generando token mock para demostración...');
 
-      // Solicitar permisos
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== 'granted') {
         const { status: newStatus } = await Notifications.requestPermissionsAsync();
@@ -32,12 +31,10 @@ class NotificationService {
         }
       }
 
-      // Canal Android
       if (Platform.OS === 'android') {
         await this.setupAndroidChannel();
       }
 
-      // Mock token (el backend lo acepta ahora)
       const mockToken = `mock-token-${Date.now()}`;
       console.log('[Notifications] ✅ Token mock generado:', mockToken);
       return mockToken;
@@ -71,18 +68,28 @@ class NotificationService {
   }
 
   /**
-   * Configurar listeners
+   * Configurar listeners - CORREGIDO para manejar mejor las notificaciones
    */
   setupNotificationListeners(onNotification: (notification: any) => void): void {
     console.log('[Notifications] Configurando listeners...');
 
     const foregroundSub = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('[Notifications] 🔔 Notificación recibida:', notification.request.content.title);
-      onNotification(notification);
+      console.log('[Notifications] 🔔 Notificación recibida en foreground:', notification.request.content.title);
+      
+      // Extraer datos de la notificación
+      const notificationData = {
+        id: `notif-${Date.now()}`,
+        title: notification.request.content.title || 'Notificación',
+        body: notification.request.content.body || '',
+        timestamp: new Date().toISOString(),
+        read: false,
+      };
+      
+      onNotification(notificationData);
     });
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('[Notifications] 👆 Usuario tocó notificación');
+      console.log('[Notifications] 👆 Usuario tocó notificación:', response.notification.request.content.title);
     });
 
     this.notificationListeners = [foregroundSub, responseSub];
